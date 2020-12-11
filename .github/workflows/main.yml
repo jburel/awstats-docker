@@ -1,0 +1,31 @@
+---
+name: Build
+
+on: 
+  push:
+  pull_request:
+  schedule:
+    - cron: '0 0 * * 0'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set logs
+        run: |
+          echo '1.1.1.1 - - [01/Jan/2017:01:00:00 +0000] "GET /awstats/awstats.pl HTTP/1.1" 200 1135 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.11; rv:50.0) Gecko/20100101 Firefox/50.0"' > access.log
+          echo '172.17.0.1 - - [01/Jan/2017:02:00:00 +0000] "GET /awstats/awstats.pl HTTP/1.1" 200 1135 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.11; rv:50.0) Gecko/20100101 Firefox/50.0"' >> access.log
+          echo '1.2.3.4 - - [01/Jan/2017:03:00:00 +0000] "GET /awstats/awstats.pl HTTP/1.1" 200 1135 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.11; rv:50.0) Gecko/20100101 Firefox/50.0"' >> access.log
+      - name: Build
+        run: docker build -t test-awstats .
+      - name: Test
+        run: |
+          docker run --rm -v test-awstats-db:/var/lib/awstats -v $PWD/:/web-logs:ro -e SKIP_HOSTS_ADDITIONAL="^1.1\." test-awstats /web-logs/access\*.log > awstats-1.log
+          grep 'Found 2 dropped records' awstats-1.log
+          grep 'Found 0 old records' awstats-1.log
+          grep 'Found 1 new qualified records' awstats-1.log
+          docker run --rm -v test-awstats-db:/var/lib/awstats -v $PWD/:/web-logs:ro -e SKIP_HOSTS_ADDITIONAL="^1.1\." test-awstats /web-logs/access\*.log > awstats-2.log
+          grep 'Found 0 dropped records' awstats-2.log
+          grep 'Found 3 old records' awstats-2.log
+          grep 'Found 0 new qualified records' awstats-2.log
